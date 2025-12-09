@@ -1,0 +1,347 @@
+"""
+Staging Table Monitor
+Detects staging tables with no records for the current business date.
+Checks tables in both Oracle and Snowflake databases.
+"""
+
+from datetime import date, datetime
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
+
+
+@dataclass
+class StagingTable:
+    id: int
+    database_type: str  # oracle/snowflake
+    database_name: str
+    schema_name: str
+    table_name: str
+    
+    @property
+    def is_oracle(self) -> bool:
+        """Determine if this is an Oracle database based on database_type."""
+        return self.database_type.lower() == "oracle"
+    
+    @property
+    def is_snowflake(self) -> bool:
+        """Determine if this is a Snowflake database based on database_type."""
+        return self.database_type.lower() == "snowflake"
+    
+    @property
+    def full_table_name(self) -> str:
+        return f"{self.schema_name}.{self.table_name}"
+
+
+def execute_oracle_query(query: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    """
+    Mock function to execute SQL queries on Oracle database.
+    """
+    print(f"[MOCK Oracle] Executing query: {query}")
+    print(f"[MOCK Oracle] Parameters: {params}")
+    
+    return [{"count": 0}]  # Simulate no records found
+
+
+def execute_snowflake_query(query: str, params: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+    """
+    Mock function to execute SQL queries on Snowflake database.
+    """
+    print(f"[MOCK Snowflake] Executing query: {query}")
+    print(f"[MOCK Snowflake] Parameters: {params}")
+    
+    return [{"count": 5}]  # Simulate records found
+
+
+def send_email(subject: str, body: str, recipients: List[str]) -> None:
+    """
+    Mock function to send email notifications.
+    """
+    print(f"[MOCK Email] Sending email...")
+    print(f"  To: {', '.join(recipients)}")
+    print(f"  Subject: {subject}")
+    print(f"  Body:\n{body}")
+    print("[MOCK Email] Email sent successfully!")
+
+
+def insert_staging_count(table_id: int, table_name: str, business_date: date, record_count: int) -> None:
+    """
+    Mock function to insert staging table count into Snowflake staging_counts table.
+    """
+    print(f"[MOCK Snowflake Insert] Inserting into staging_counts table...")
+    print(f"  Table ID: {table_id}")
+    print(f"  Table Name: {table_name}")
+    print(f"  Business Date: {business_date}")
+    print(f"  Record Count: {record_count}")
+    
+    # Mock SQL that would be executed
+    query = """
+        INSERT INTO staging_counts (table_id, table_name, business_date, record_count, check_timestamp)
+        VALUES (:table_id, :table_name, :business_date, :record_count, CURRENT_TIMESTAMP())
+    """
+    print(f"[MOCK Snowflake Insert] Query: {query}")
+    print(f"[MOCK Snowflake Insert] Record inserted successfully!")
+
+
+def insert_run_log(program_name: str, business_date: date, start_time: datetime, end_time: Optional[datetime] = None) -> int:
+    """
+    Mock function to insert/update program run log into Snowflake run_log table.
+    """
+    import random
+    run_id = random.randint(1000, 9999)  # Simulate auto-generated identity
+    
+    if end_time is None:
+        # Insert initial run record
+        print(f"[MOCK Snowflake Insert] Inserting into run_log table...")
+        print(f"  Run ID: {run_id} (auto-generated)")
+        print(f"  Program Name: {program_name}")
+        print(f"  Business Date: {business_date}")
+        print(f"  Start Time: {start_time}")
+        print(f"  End Time: NULL (still running)")
+        
+        query = """
+            INSERT INTO run_log (program_name, business_date, start_time, end_time)
+            VALUES (:program_name, :business_date, :start_time, NULL)
+        """
+        print(f"[MOCK Snowflake Insert] Query: {query}")
+    else:
+        # Update with end time
+        duration = (end_time - start_time).total_seconds()
+        print(f"[MOCK Snowflake Update] Updating run_log table...")
+        print(f"  Run ID: {run_id}")
+        print(f"  End Time: {end_time}")
+        print(f"  Duration: {duration:.2f} seconds")
+        
+        query = """
+            UPDATE run_log 
+            SET end_time = :end_time
+            WHERE run_id = :run_id
+        """
+        print(f"[MOCK Snowflake Update] Query: {query}")
+    
+    print(f"[MOCK Snowflake] Run log record processed successfully!")
+    return run_id
+
+
+def get_staging_tables() -> List[StagingTable]:
+
+    # Mock data - 5 sample staging table entries
+    mock_data = [
+        {'ID': 1, 'DATABASE_TYPE': 'oracle', 'DATABASE_NAME': 'ORADB01', 'SCHEMA_NAME': 'SALES_STG', 'TABLE_NAME': 'STG_ORDERS'},
+        {'ID': 2, 'DATABASE_TYPE': 'snowflake', 'DATABASE_NAME': 'CLCP01', 'SCHEMA_NAME': 'FINANCE_STG', 'TABLE_NAME': 'STG_TRANSACTIONS'},
+        {'ID': 3, 'DATABASE_TYPE': 'oracle', 'DATABASE_NAME': 'ORADB01', 'SCHEMA_NAME': 'CUSTOMER_STG', 'TABLE_NAME': 'STG_CUSTOMER_DATA'},
+        {'ID': 4, 'DATABASE_TYPE': 'snowflake', 'DATABASE_NAME': 'CLCP01', 'SCHEMA_NAME': 'INVENTORY_STG', 'TABLE_NAME': 'STG_PRODUCT_INVENTORY'},
+        {'ID': 5, 'DATABASE_TYPE': 'oracle', 'DATABASE_NAME': 'ORADB01', 'SCHEMA_NAME': 'HR_STG', 'TABLE_NAME': 'STG_EMPLOYEE_RECORDS'}
+    ]
+    
+    # Convert results to StagingTable objects
+    staging_tables = []
+    for row in mock_data:
+        db_type = row.get('DATABASE_TYPE', row.get('database_type', ''))
+        staging_tables.append(StagingTable(
+            id=row.get('ID', row.get('id')),
+            database_type=db_type.lower() if db_type else '',
+            database_name=row.get('DATABASE_NAME', row.get('database_name')),
+            schema_name=row.get('SCHEMA_NAME', row.get('schema_name')),
+            table_name=row.get('TABLE_NAME', row.get('table_name'))
+        ))
+    
+    return staging_tables
+
+
+def check_table_for_business_date(table: StagingTable, business_date: date) -> int:
+
+    query = f"""
+        SELECT COUNT(*) as count
+        FROM {table.full_table_name}
+        WHERE business_date = :business_date
+    """
+    
+    params = {'business_date': business_date}
+    
+    # Execute on appropriate database
+    if table.is_oracle:
+        results = execute_oracle_query(query, params)
+    else:
+        results = execute_snowflake_query(query, params)
+    
+    # Extract count from results
+    if results and len(results) > 0:
+        return results[0].get('COUNT', results[0].get('count', 0))
+    
+    return 0
+
+
+def format_email_body(tables_without_data: List[Dict[str, Any]], business_date: date) -> str:
+
+    body = f"Alert: Staging Tables with No Records for {business_date}\n"
+    body += "=" * 70 + "\n\n"
+    body += f"The following staging tables have no records for business date {business_date}:\n\n"
+    
+    for idx, table_info in enumerate(tables_without_data, 1):
+        body += f"{idx}. {table_info['full_name']}\n"
+        body += f"   Database: {table_info['database']}\n"
+        body += f"   Schema: {table_info['schema']}\n"
+        body += f"   Table: {table_info['table']}\n"
+        body += f"   Table ID: {table_info['id']}\n\n"
+    
+    body += "-" * 70 + "\n"
+    body += f"Total tables affected: {len(tables_without_data)}\n"
+    body += f"Please investigate and ensure data loads are running correctly.\n"
+    
+    return body
+
+
+def monitor_staging_tables(business_date: date = None, email_recipients: List[str] = None) -> None:
+
+    if business_date is None:
+        business_date = date.today()
+    
+    if email_recipients is None:
+        email_recipients = ['data-team@example.com']
+    
+    # Log program start
+    program_name = "staging_table_monitor"
+    start_time = datetime.now()
+    run_id = insert_run_log(program_name, business_date, start_time)
+    
+    print(f"Starting staging table monitor for business date: {business_date}")
+    print("=" * 70)
+    
+    # Get all staging tables
+    staging_tables = get_staging_tables()
+    print(f"\nFound {len(staging_tables)} staging tables to check\n")
+    
+    # Check each table for data
+    tables_without_data = []
+    
+    for table in staging_tables:
+        print(f"Checking {table.database_type} table: {table.full_table_name}...")
+        
+        record_count = check_table_for_business_date(table, business_date)
+        
+        # Insert count into staging_counts table
+        insert_staging_count(table.id, table.full_table_name, business_date, record_count)
+        
+        if record_count == 0:
+            print(f"  ⚠️  WARNING: No records found!")
+            tables_without_data.append({
+                'id': table.id,
+                'database': table.database_type,
+                'schema': table.schema_name,
+                'table': table.table_name,
+                'full_name': table.full_table_name
+            })
+        else:
+            print(f"  ✓ OK: {record_count} records found")
+        
+        print()
+    
+    # Send email if any tables are missing data
+    if tables_without_data:
+        print("\n" + "=" * 70)
+        print(f"ALERT: {len(tables_without_data)} table(s) have no data for {business_date}")
+        print("=" * 70 + "\n")
+        
+        subject = f"[ALERT] Staging Tables Missing Data for {business_date}"
+        body = format_email_body(tables_without_data, business_date)
+        
+        send_email(subject, body, email_recipients)
+    else:
+        print("\n" + "=" * 70)
+        print("SUCCESS: All staging tables have data for the current business date")
+        print("=" * 70)
+    
+    # Log program end
+    end_time = datetime.now()
+    insert_run_log(program_name, business_date, start_time, end_time)
+
+
+if __name__ == "__main__":
+    import argparse
+    from datetime import date, datetime
+    
+    parser = argparse.ArgumentParser(description='Monitor staging tables for missing data on business date')
+    parser.add_argument(
+        '--business-date',
+        type=str,
+        default=None,
+        help='Business date to check in YYYY-MM-DD format (defaults to current date)'
+    )
+    parser.add_argument(
+        '--email',
+        type=str,
+        nargs='+',
+        default=['data-team@example.com'],
+        help='Email recipients for notifications'
+    )
+    
+    args = parser.parse_args()
+    
+    # Parse business date if provided, otherwise use current date
+    if args.business_date:
+        try:
+            business_date = datetime.strptime(args.business_date, '%Y-%m-%d').date()
+        except ValueError:
+            print(f"Error: Invalid date format '{args.business_date}'. Use YYYY-MM-DD format.")
+            exit(1)
+    else:
+        business_date = date.today()
+    
+    # Run the monitor
+    monitor_staging_tables(
+        business_date=business_date,
+        email_recipients=args.email
+    )
+    
+    exit(0)
+
+
+# ==============================================================================
+# SNOWFLAKE TABLE CREATION STATEMENTS
+# ==============================================================================
+#
+# -- Table to store staging table configuration
+# CREATE TABLE staging_tables (
+#     id INTEGER AUTOINCREMENT PRIMARY KEY,
+#     database_type VARCHAR(50) NOT NULL,  -- 'oracle' or 'snowflake'
+#     database_name VARCHAR(100) NOT NULL,  -- e.g., 'ORADB01' or 'CLCP01'
+#     schema_name VARCHAR(100) NOT NULL,
+#     table_name VARCHAR(100) NOT NULL,
+#     active BOOLEAN DEFAULT TRUE,
+#     created_date TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+#     modified_date TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+#     CONSTRAINT uk_staging_tables UNIQUE (database_name, schema_name, table_name)
+# );
+#
+# -- Table to store record counts for each staging table check
+# CREATE TABLE staging_counts (
+#     id INTEGER AUTOINCREMENT PRIMARY KEY,
+#     table_id INTEGER NOT NULL,
+#     table_name VARCHAR(200) NOT NULL,
+#     business_date DATE NOT NULL,
+#     record_count INTEGER NOT NULL,
+#     check_timestamp TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+#     CONSTRAINT fk_staging_counts_table FOREIGN KEY (table_id) REFERENCES staging_tables(id)
+# );
+#
+# -- Table to log program execution runs
+# CREATE TABLE run_log (
+#     run_id INTEGER AUTOINCREMENT PRIMARY KEY,
+#     program_name VARCHAR(100) NOT NULL,
+#     business_date DATE NOT NULL,
+#     start_time TIMESTAMP_NTZ NOT NULL,
+#     end_time TIMESTAMP_NTZ,
+#     status VARCHAR(50),  -- 'RUNNING', 'COMPLETED', 'FAILED'
+#     error_message VARCHAR(1000)
+# );
+#
+# -- Sample data insert for staging_tables
+# INSERT INTO staging_tables (database_type, database_name, schema_name, table_name)
+# VALUES 
+#     ('oracle', 'ORADB01', 'SALES_STG', 'STG_ORDERS'),
+#     ('snowflake', 'CLCP01', 'FINANCE_STG', 'STG_TRANSACTIONS'),
+#     ('oracle', 'ORADB01', 'CUSTOMER_STG', 'STG_CUSTOMER_DATA'),
+#     ('snowflake', 'CLCP01', 'INVENTORY_STG', 'STG_PRODUCT_INVENTORY'),
+#     ('oracle', 'ORADB01', 'HR_STG', 'STG_EMPLOYEE_RECORDS');
+#
+# ==============================================================================
